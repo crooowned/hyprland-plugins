@@ -64,13 +64,26 @@ void onNewWindow(PHLWINDOW pWindow) {
     pWindow->m_vSize = totalSize;
     pWindow->m_vPosition = minPosition;
     pWindow->m_bPinned = true;
-    g_pXWaylandManager->setWindowSize(pWindow, pWindow->m_vRealSize.goal(), true);
+
+    // Ensure the window spans all workspaces
+    for (const auto& monitor : monitors) {
+        g_pCompositor->moveWindowToWorkspace(pWindow, monitor->activeWorkspace);
+    }
+
+    // Force update window size and position
+    g_pXWaylandManager->setWindowSize(pWindow, totalSize, true);
+    g_pCompositor->updateWindowAnimatedDecorationValues(pWindow);
 
     bgWindows.push_back(pWindow);
 
     pWindow->m_bHidden = true; // no renderino hyprland pls
 
     g_pInputManager->refocus();
+
+    // Log the window size and position for debugging
+    Debug::log(LOG, "[hyprwinwrap] Window size: {}x{}, position: {},{}",
+               pWindow->m_vRealSize.goal().x, pWindow->m_vRealSize.goal().y,
+               pWindow->m_vRealPosition.goal().x, pWindow->m_vRealPosition.goal().y);
 
     Debug::log(LOG, "[hyprwinwrap] new window moved to bg covering all monitors");
 }
