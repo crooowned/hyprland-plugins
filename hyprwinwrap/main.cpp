@@ -67,7 +67,7 @@ void onNewWindow(PHLWINDOW pWindow) {
 
     // Ensure the window spans all workspaces
     for (const auto& monitor : monitors) {
-        g_pCompositor->moveWindowToWorkspace(pWindow, monitor->activeWorkspace);
+        g_pCompositor->moveWindowToWorkspaceSafe(pWindow, monitor->activeWorkspace);
     }
 
     // Force update window size and position
