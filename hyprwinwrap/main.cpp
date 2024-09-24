@@ -58,14 +58,19 @@ void onNewWindow(PHLWINDOW pWindow) {
 
     // Create copies for other monitors
     for (size_t i = 1; i < monitors.size(); ++i) {
-        auto copyWindow = pWindow->clone();
+        auto copyWindow = g_pCompositor->createWindowInternal(pWindow->m_sAdditionalConfigData);
         if (copyWindow) {
+            copyWindow->m_szInitialClass = pWindow->m_szInitialClass;
+            copyWindow->m_szInitialTitle = pWindow->m_szInitialTitle;
+            copyWindow->m_sAdditionalConfigData = pWindow->m_sAdditionalConfigData;
+            copyWindow->m_bIsFloating = true;
             copyWindow->m_vRealSize.setValueAndWarp(monitors[i]->vecSize);
             copyWindow->m_vRealPosition.setValueAndWarp(monitors[i]->vecPosition);
             copyWindow->m_vSize     = monitors[i]->vecSize;
             copyWindow->m_vPosition = monitors[i]->vecPosition;
             copyWindow->m_bPinned   = true;
             copyWindow->m_bHidden   = true;
+            copyWindow->m_iMonitorID = monitors[i]->ID;
             g_pXWaylandManager->setWindowSize(copyWindow, copyWindow->m_vRealSize.goal(), true);
             bgWindows.push_back(copyWindow);
         }
