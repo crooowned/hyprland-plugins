@@ -29,25 +29,26 @@ typedef void (*origCommit)(void* owner, void* data);
 
 std::vector<PHLWINDOWREF> bgWindows;
 
-//
 void onNewWindow(PHLWINDOW pWindow) {
     static auto* const PCLASS = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:class")->getDataStaticPtr();
 
     if (pWindow->m_szInitialClass != *PCLASS)
         return;
 
-    const auto PMONITOR = g_pCompositor->getMonitorFromID(pWindow->m_iMonitorID);
+    // Get all monitors
+    const auto& monitors = g_pCompositor->m_vMonitors;
 
-    if (!PMONITOR)
+    if (monitors.empty())
         return;
 
     if (!pWindow->m_bIsFloating)
         g_pLayoutManager->getCurrentLayout()->changeWindowFloatingMode(pWindow);
 
-    pWindow->m_vRealSize.setValueAndWarp(PMONITOR->vecSize);
-    pWindow->m_vRealPosition.setValueAndWarp(PMONITOR->vecPosition);
-    pWindow->m_vSize     = PMONITOR->vecSize;
-    pWindow->m_vPosition = PMONITOR->vecPosition;
+    // Set window properties for the first monitor
+    pWindow->m_vRealSize.setValueAndWarp(monitors[0]->vecSize);
+    pWindow->m_vRealPosition.setValueAndWarp(monitors[0]->vecPosition);
+    pWindow->m_vSize     = monitors[0]->vecSize;
+    pWindow->m_vPosition = monitors[0]->vecPosition;
     pWindow->m_bPinned   = true;
     g_pXWaylandManager->setWindowSize(pWindow, pWindow->m_vRealSize.goal(), true);
 
@@ -55,9 +56,24 @@ void onNewWindow(PHLWINDOW pWindow) {
 
     pWindow->m_bHidden = true; // no renderino hyprland pls
 
+    // Create copies for other monitors
+    for (size_t i = 1; i < monitors.size(); ++i) {
+        auto copyWindow = pWindow->clone();
+        if (copyWindow) {
+            copyWindow->m_vRealSize.setValueAndWarp(monitors[i]->vecSize);
+            copyWindow->m_vRealPosition.setValueAndWarp(monitors[i]->vecPosition);
+            copyWindow->m_vSize     = monitors[i]->vecSize;
+            copyWindow->m_vPosition = monitors[i]->vecPosition;
+            copyWindow->m_bPinned   = true;
+            copyWindow->m_bHidden   = true;
+            g_pXWaylandManager->setWindowSize(copyWindow, copyWindow->m_vRealSize.goal(), true);
+            bgWindows.push_back(copyWindow);
+        }
+    }
+
     g_pInputManager->refocus();
 
-    Debug::log(LOG, "[hyprwinwrap] new window moved to bg {}", pWindow);
+    Debug::log(LOG, "[hyprwinwrap] new window(s) moved to bg");
 }
 
 void onCloseWindow(PHLWINDOW pWindow) {
@@ -79,7 +95,6 @@ void onRenderStage(eRenderStage stage) {
         timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);
 
-        // cant use setHidden cuz that sends suspended and shit too that would be laggy
         bgw->m_bHidden = false;
 
         g_pHyprRenderer->renderWindow(bgw, g_pHyprOpenGL->m_RenderData.pMonitor, &now, false, RENDER_PASS_ALL, false, true);
