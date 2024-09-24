@@ -44,42 +44,37 @@ void onNewWindow(PHLWINDOW pWindow) {
     if (!pWindow->m_bIsFloating)
         g_pLayoutManager->getCurrentLayout()->changeWindowFloatingMode(pWindow);
 
-    // Set window properties for the first monitor
-    pWindow->m_vRealSize.setValueAndWarp(monitors[0]->vecSize);
-    pWindow->m_vRealPosition.setValueAndWarp(monitors[0]->vecPosition);
-    pWindow->m_vSize     = monitors[0]->vecSize;
-    pWindow->m_vPosition = monitors[0]->vecPosition;
-    pWindow->m_bPinned   = true;
+    // Calculate the bounding box of all monitors
+    Vector2D totalSize = Vector2D(0, 0);
+    Vector2D minPosition = Vector2D(std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
+
+    for (const auto& monitor : monitors) {
+        totalSize.x = std::max(totalSize.x, monitor->vecPosition.x + monitor->vecSize.x);
+        totalSize.y = std::max(totalSize.y, monitor->vecPosition.y + monitor->vecSize.y);
+        minPosition.x = std::min(minPosition.x, monitor->vecPosition.x);
+        minPosition.y = std::min(minPosition.y, monitor->vecPosition.y);
+    }
+
+    totalSize.x -= minPosition.x;
+    totalSize.y -= minPosition.y;
+
+    // Set window properties to cover all monitors
+    pWindow->m_vRealSize.setValueAndWarp(totalSize);
+    pWindow->m_vRealPosition.setValueAndWarp(minPosition);
+    pWindow->m_vSize = totalSize;
+    pWindow->m_vPosition = minPosition;
+    pWindow->m_bPinned = true;
     g_pXWaylandManager->setWindowSize(pWindow, pWindow->m_vRealSize.goal(), true);
 
     bgWindows.push_back(pWindow);
 
     pWindow->m_bHidden = true; // no renderino hyprland pls
 
-    // Create copies for other monitors
-    for (size_t i = 1; i < monitors.size(); ++i) {
-        auto copyWindow = g_pCompositor->createWindowInternal(pWindow->m_sAdditionalConfigData);
-        if (copyWindow) {
-            copyWindow->m_szInitialClass = pWindow->m_szInitialClass;
-            copyWindow->m_szInitialTitle = pWindow->m_szInitialTitle;
-            copyWindow->m_sAdditionalConfigData = pWindow->m_sAdditionalConfigData;
-            copyWindow->m_bIsFloating = true;
-            copyWindow->m_vRealSize.setValueAndWarp(monitors[i]->vecSize);
-            copyWindow->m_vRealPosition.setValueAndWarp(monitors[i]->vecPosition);
-            copyWindow->m_vSize     = monitors[i]->vecSize;
-            copyWindow->m_vPosition = monitors[i]->vecPosition;
-            copyWindow->m_bPinned   = true;
-            copyWindow->m_bHidden   = true;
-            copyWindow->m_iMonitorID = monitors[i]->ID;
-            g_pXWaylandManager->setWindowSize(copyWindow, copyWindow->m_vRealSize.goal(), true);
-            bgWindows.push_back(copyWindow);
-        }
-    }
-
     g_pInputManager->refocus();
 
-    Debug::log(LOG, "[hyprwinwrap] new window(s) moved to bg");
+    Debug::log(LOG, "[hyprwinwrap] new window moved to bg covering all monitors");
 }
+
 
 void onCloseWindow(PHLWINDOW pWindow) {
     std::erase_if(bgWindows, [pWindow](const auto& ref) { return ref.expired() || ref.lock() == pWindow; });
